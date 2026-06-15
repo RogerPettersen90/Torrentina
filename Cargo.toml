@@ -1,0 +1,32 @@
+[workspace]
+members = ["gui"]
+
+[package]
+name = "torrentina"
+version = "0.1.0"
+edition = "2021"
+description = "A lightweight, efficient local BitTorrent client built from scratch in Rust."
+license = "MIT"
+readme = "README.md"
+authors = ["Roger Pettersen <roger.pettersen90@gmail.com>"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_bencode = "0.2"
+serde_bytes = "0.11"
+sha1 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "macros", "io-util", "sync", "fs"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = { version = "0.3", features = ["sink"] }
+bytes = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+url = "2"
+percent-encoding = "2"
+rand = "0.8"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+
+[dev-dependencies]
+hex = "0.4"
+tempfile = "3"

@@ -1,0 +1,11 @@
+# Rust build artifacts
+/target
+/gui/target
+
+# Tauri generated schemas/build output
+/gui/gen
+/gui/dist/.vite
+
+# Editor / OS cruft
+*.swp
+.DS_Store

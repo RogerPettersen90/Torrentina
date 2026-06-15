@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Torrentina</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>🌀 Torrentina</h1>
+      <span class="subtitle">a lightweight BitTorrent client</span>
+    </header>
+
+    <section class="controls">
+      <label>
+        Torrent file
+        <div class="path-input">
+          <input id="torrent" type="text" placeholder="/path/to/file.torrent" spellcheck="false" />
+          <button id="browse" class="secondary" type="button">Browse…</button>
+        </div>
+      </label>
+      <label>
+        Output directory
+        <div class="path-input">
+          <input id="output" type="text" value="." spellcheck="false" />
+          <button id="browse-output" class="secondary" type="button">Browse…</button>
+        </div>
+      </label>
+      <button id="add">Add torrent</button>
+    </section>
+
+    <section class="torrents">
+      <div id="torrents"></div>
+      <p id="empty" class="empty-note">No torrents yet — add one above.</p>
+    </section>
+
+    <section class="logpanel">
+      <h2>Log</h2>
+      <div id="log" class="log"></div>
+    </section>
+
+    <!-- Remove confirmation modal (three choices). -->
+    <div id="modal" class="modal-backdrop hidden">
+      <div class="modal">
+        <h2>Remove “<span id="modal-name"></span>”</h2>
+        <p>Choose what to remove. Deleting data cannot be undone.</p>
+        <div class="modal-actions">
+          <button id="rm-list" class="secondary" type="button">Remove from list only</button>
+          <button id="rm-both" class="danger" type="button">Remove from list &amp; delete data</button>
+          <button id="rm-data" class="danger" type="button">Delete data, keep entry</button>
+          <button id="rm-cancel" class="secondary" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row template. -->
+    <template id="row-tpl">
+      <div class="torrent">
+        <div class="name-row">
+          <span class="name"></span>
+          <span class="badge">idle</span>
+        </div>
+        <div class="bar"><div class="fill"></div></div>
+        <div class="metrics">
+          <span class="percent">0.0%</span>
+          <span class="pieces">0 / 0 pieces</span>
+          <span class="rate">0 B/s</span>
+          <span class="eta">—</span>
+          <span class="peers">0 peers</span>
+          <span class="size">0 B / 0 B</span>
+        </div>
+        <div class="actions">
+          <button class="start secondary hidden" type="button">Start</button>
+          <button class="pause secondary" type="button" disabled>Pause</button>
+          <button class="remove secondary danger" type="button">Remove</button>
+        </div>
+        <details class="peerbox">
+          <summary>Peers</summary>
+          <table>
+            <thead>
+              <tr><th>Address</th><th>State</th><th>Has</th><th>Downloaded</th></tr>
+            </thead>
+            <tbody class="peer-rows">
+              <tr class="empty"><td colspan="4">No peers connected</td></tr>
+            </tbody>
+          </table>
+        </details>
+      </div>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
