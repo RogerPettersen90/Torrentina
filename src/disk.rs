@@ -51,7 +51,11 @@ fn build_file_map(meta: &Metainfo, base_dir: impl AsRef<Path>) -> Result<Vec<Map
             length,
             offset,
         });
-        offset += length;
+        // Lengths come from an untrusted `.torrent`; a hostile (or absurd) file
+        // table must not silently wrap the running offset.
+        offset = offset
+            .checked_add(length)
+            .ok_or_else(|| Error::Storage("total torrent size overflows u64".into()))?;
     }
     Ok(files)
 }

@@ -110,26 +110,21 @@ webkit2gtk-4.1, gtk3, libsoup3.
   (cures the 99.9% stall), but we don't send `Cancel` to the loser, so the final
   piece can be fetched twice. Correct, slightly wasteful at the tail.
 - **No upload/seeding** — leech only; we never serve pieces to other peers.
-- **Availability not decremented on disconnect** — only affects rarest-first
-  precision, not correctness.
 
 ## Next steps (suggested priority order)
 
-1. **Handshake timeout** — `download/mod.rs` now has a per-request stall
-   timeout; still worth wrapping `PeerConnection::connect`/handshake in
-   `tokio::time::timeout` so a dead peer's task winds down fast.
-2. **Periodic re-announce** — re-announce on `interval`, send `Completed` when
+1. **Periodic re-announce** — re-announce on `interval`, send `Completed` when
    done and `Stopped` on cancel/exit. Lives in the CLI/GUI orchestration +
    maybe a small loop in `tracker`.
-3. **Resume from disk** — on `Storage::create`, read existing files, hash each
+2. **Resume from disk** — on `Storage::create`, read existing files, hash each
    piece, and pre-populate `PieceTracker.have`. Touches `disk.rs` +
    `download/state.rs`. Would make the GUI's persisted list truly resumable.
-4. **Endgame `Cancel`** — send `Cancel` for the duplicated tail piece once one
+3. **Endgame `Cancel`** — send `Cancel` for the duplicated tail piece once one
    peer delivers it, to avoid the small double-fetch at the very end.
-5. **GUI polish** — native completion notification, persist last-used paths,
+4. **GUI polish** — native completion notification, persist last-used paths,
    per-torrent speed limits. (Multiple concurrent torrents + list persistence
    are now done.)
-6. **Seeding/upload** — accept inbound connections, serve `Piece` on request.
+5. **Seeding/upload** — accept inbound connections, serve `Piece` on request.
 
 ## Conventions in this codebase (keep consistent)
 

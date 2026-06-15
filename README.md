@@ -4,7 +4,7 @@ A lightweight, efficient BitTorrent client built from scratch in Rust — as a
 reusable **engine library**, a **CLI**, and a **Tauri v2 desktop GUI**.
 
 > Status: complete and stable for personal use. All five protocol modules are
-> implemented and tested (**61 tests, clippy-clean**), with a multi-torrent
+> implemented and tested (**64 tests, clippy-clean**), with a multi-torrent
 > desktop UI. See [`PROJECT_STATUS.md`](./PROJECT_STATUS.md) for the detailed
 > module breakdown and roadmap.
 
@@ -121,7 +121,7 @@ writes them to disk.
 ## Development
 
 ```bash
-cargo test                              # 61 tests
+cargo test                              # 64 tests
 cargo clippy --workspace --all-targets  # clean
 ```
 

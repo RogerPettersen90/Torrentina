@@ -73,6 +73,19 @@ impl PieceTracker {
         }
     }
 
+    /// Undo a peer's availability contribution when it disconnects (or replaces
+    /// its bitfield). Without this, pieces advertised by long-departed peers
+    /// stay counted forever, so a piece many transient peers once had looks
+    /// permanently common and rarest-first stops prioritizing it. `saturating`
+    /// guards against any accounting drift from a misbehaving peer.
+    pub fn remove_bitfield_availability(&mut self, bitfield: &Bitfield) {
+        for i in 0..self.availability.len() {
+            if bitfield.has(i) {
+                self.availability[i] = self.availability[i].saturating_sub(1);
+            }
+        }
+    }
+
     /// Pick a piece for a peer to download, claiming it exclusively.
     ///
     /// Among pieces we still need, that the peer has, and that no other peer is
@@ -219,6 +232,40 @@ mod tests {
         t.mark_have(0);
         t.mark_have(1);
         assert_eq!(t.reserve_piece_endgame(&all), None);
+    }
+
+    #[test]
+    fn removing_availability_is_saturating_and_changes_rarest_order() {
+        let mut t = PieceTracker::from_info(&info_with_hashes(&[[0; 20]; 2])).unwrap();
+        let only_0 = {
+            let mut bf = Bitfield::new(2);
+            bf.set(0);
+            bf
+        };
+        let only_1 = {
+            let mut bf = Bitfield::new(2);
+            bf.set(1);
+            bf
+        };
+        let all = full_bitfield(2);
+
+        // Availability ends at piece 0 = 2, piece 1 = 1, so piece 1 is rarest
+        // and gets reserved first.
+        t.add_bitfield_availability(&only_1);
+        t.add_bitfield_availability(&only_0);
+        t.add_bitfield_availability(&only_0);
+        assert_eq!(t.reserve_piece(&all), Some(1));
+        t.release_piece(1);
+
+        // One piece-0 holder disconnects: piece 0 drops to availability 1,
+        // tying piece 1, so the tie-break now hands out piece 0 first — the
+        // decrement demonstrably shifted selection.
+        t.remove_bitfield_availability(&only_0);
+        assert_eq!(t.reserve_piece(&all), Some(0));
+
+        // Over-removing past zero must saturate, not underflow/panic.
+        t.remove_bitfield_availability(&all);
+        t.remove_bitfield_availability(&all);
     }
 
     #[test]

@@ -4,6 +4,41 @@ All notable changes to Torrentina are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+
+- **Path-traversal guard.** Every name component from a `.torrent` (the `info`
+  `name` and each multi-file `path` element) is now validated before it is
+  joined onto the download directory. A hostile torrent can no longer use `..`,
+  an absolute path, or embedded separators to write files outside the chosen
+  output directory (`Metainfo::file_paths`).
+
+### Hardened
+
+- **Peer connect/handshake timeouts.** `PeerConnection::connect` now wraps both
+  the TCP dial and the handshake exchange in a 10s `tokio::time::timeout`, so a
+  dead or unresponsive peer no longer pins a task for the OS-level SYN timeout.
+- **Overflow-checked file layout.** The cumulative file-offset accumulation in
+  `disk.rs` uses `checked_add`, rejecting a torrent whose declared sizes would
+  wrap `u64` instead of silently writing to wrong offsets.
+
+### Fixed
+
+- **Availability decremented on disconnect.** A peer's contribution to the
+  rarest-first availability counts is now undone when it disconnects (or
+  replaces its bitfield), so pieces advertised by long-departed peers no longer
+  look permanently common and distort piece selection.
+
+### Changed
+
+- `Bitfield::count`/`is_complete` are now O(1) (count maintained incrementally)
+  instead of rescanning every piece on each `have`/`bitfield` message and
+  progress snapshot.
+- `Metainfo::all_trackers` de-duplicates via a `HashSet` (was O(n²)).
+- The GUI now surfaces a log line when deleting a torrent's on-disk data fails,
+  instead of silently swallowing the error.
+
 ## [0.1.0] — 2026-06-05
 
 First complete, personal-use release: a from-scratch BitTorrent engine plus a

@@ -309,10 +309,11 @@ impl Metainfo {
     /// All announce URLs (primary + announce-list), de-duplicated by first
     /// appearance and flattened across tiers. Useful for Module 2.
     pub fn all_trackers(&self) -> Vec<String> {
-        let mut seen = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
         let mut push = |url: &String| {
-            if !seen.contains(url) {
-                seen.push(url.clone());
+            if seen.insert(url.clone()) {
+                out.push(url.clone());
             }
         };
         if let Some(announce) = &self.announce {
@@ -325,7 +326,7 @@ impl Metainfo {
                 }
             }
         }
-        seen
+        out
     }
 
     /// Resolve on-disk paths for each file, rooted at `base_dir`.
@@ -333,27 +334,57 @@ impl Metainfo {
     /// For a single-file torrent this is `base_dir/<name>`. For multi-file it
     /// is `base_dir/<name>/<path components...>`. Returned alongside each
     /// file's length, which Module 5 will use to lay out the files.
+    ///
+    /// Every name component (the torrent `name` and each `path` element) is
+    /// validated to be a single, plain segment — a malicious `.torrent` cannot
+    /// use `..`, an absolute path, or embedded separators to escape `base_dir`
+    /// (see [`validate_path_component`]).
     pub fn file_paths(&self, base_dir: impl AsRef<Path>) -> Result<Vec<(PathBuf, u64)>> {
         let base = base_dir.as_ref();
+        validate_path_component(&self.info.name)?;
         match self.info.layout()? {
             FileLayout::Single { length } => {
                 Ok(vec![(base.join(&self.info.name), length)])
             }
             FileLayout::Multi { files } => {
                 let root = base.join(&self.info.name);
-                Ok(files
+                files
                     .iter()
                     .map(|f| {
                         let mut p = root.clone();
                         for component in &f.path {
+                            validate_path_component(component)?;
                             p.push(component);
                         }
-                        (p, f.length)
+                        Ok((p, f.length))
                     })
-                    .collect())
+                    .collect()
             }
         }
     }
+}
+
+/// Reject a path component taken from a `.torrent` that could escape the
+/// download directory.
+///
+/// A hostile torrent can place `..`, an absolute path, or embedded separators
+/// in its `name` or a file's `path` list; pushing those straight onto a
+/// `PathBuf` would let it write anywhere the process can (classic path
+/// traversal). We require each component to be a single, plain, non-relative
+/// segment with no separators or NUL bytes.
+fn validate_path_component(component: &str) -> Result<()> {
+    if component.is_empty()
+        || component == "."
+        || component == ".."
+        || component.contains('/')
+        || component.contains('\\')
+        || component.contains('\0')
+    {
+        return Err(Error::MalformedTorrent(format!(
+            "unsafe path component {component:?} in torrent (possible path traversal)"
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -488,6 +519,50 @@ mod tests {
                 (PathBuf::from("/downloads/dir/b"), 20),
             ]
         );
+    }
+
+    #[test]
+    fn rejects_path_traversal_in_file_paths() {
+        // A multi-file torrent whose path tries to climb out of the download
+        // dir via `..` must be rejected, not resolved to `/etc/...`.
+        let info = b"d5:filesld6:lengthi10e4:pathl2:..6:passwdeee\
+4:name3:dir12:piece lengthi16e6:pieces20:CCCCCCCCCCCCCCCCCCCCe";
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"d8:announce15:http://tracker/4:info");
+        bytes.extend_from_slice(info);
+        bytes.extend_from_slice(b"e");
+
+        let meta = Metainfo::from_bytes(&bytes).expect("parses; rejection is at resolve time");
+        assert!(matches!(
+            meta.file_paths("/downloads"),
+            Err(Error::MalformedTorrent(_))
+        ));
+    }
+
+    #[test]
+    fn rejects_path_traversal_in_torrent_name() {
+        // A single-file torrent whose `name` is `..` would escape the base dir.
+        let meta = Metainfo {
+            announce: None,
+            announce_list: None,
+            info: Info {
+                name: "..".into(),
+                piece_length: 16,
+                pieces: vec![0u8; 20],
+                length: Some(16),
+                files: None,
+                private: None,
+            },
+            comment: None,
+            created_by: None,
+            creation_date: None,
+            encoding: None,
+            raw_info_hash: None,
+        };
+        assert!(matches!(
+            meta.file_paths("/downloads"),
+            Err(Error::MalformedTorrent(_))
+        ));
     }
 
     #[test]

@@ -6,10 +6,12 @@
 //! [`recv`](PeerConnection::recv).
 
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::time::timeout;
 use tokio_util::codec::Framed;
 
 use crate::error::{Error, Result};
@@ -17,6 +19,15 @@ use crate::metainfo::InfoHash;
 use crate::peer::handshake::{Handshake, HANDSHAKE_LEN};
 use crate::peer::message::{Message, PeerCodec};
 use crate::peer::PeerId;
+
+/// How long to wait for the TCP connection to a peer to establish. Without
+/// this, a peer at an unroutable address pins the task for the OS-level SYN
+/// timeout (often minutes) before the dial fails.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long to wait for the handshake exchange (write ours + read theirs).
+/// A peer that accepts the TCP connection but never speaks must not hang us.
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// An established, post-handshake connection to one peer.
 pub struct PeerConnection {
@@ -35,8 +46,16 @@ impl PeerConnection {
         info_hash: InfoHash,
         peer_id: PeerId,
     ) -> Result<Self> {
-        let mut stream = TcpStream::connect(addr).await?;
-        let remote = handshake(&mut stream, info_hash, peer_id).await?;
+        let mut stream = timeout(CONNECT_TIMEOUT, TcpStream::connect(addr))
+            .await
+            .map_err(|_| {
+                Error::PeerProtocol(format!("connection to {addr} timed out"))
+            })??;
+        let remote = timeout(HANDSHAKE_TIMEOUT, handshake(&mut stream, info_hash, peer_id))
+            .await
+            .map_err(|_| {
+                Error::PeerProtocol(format!("handshake with {addr} timed out"))
+            })??;
         Ok(PeerConnection {
             remote_peer_id: remote.peer_id,
             addr,

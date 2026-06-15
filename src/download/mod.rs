@@ -248,6 +248,10 @@ async fn run_session(
     let mut next_block: u32 = 0; // next block index to request for `current`
     let mut in_flight: u32 = 0; // outstanding (requested, unanswered) blocks
 
+    // Run the session loop inside an async block so that, however it exits
+    // (completion, cancel, a silent-peer timeout, an I/O error via `?`, or the
+    // peer hanging up), we still reach the availability cleanup below.
+    let loop_result: Result<()> = async {
     loop {
         // Honour the current control state before doing any work. Copy it out
         // so the `watch::Ref` is released before we may `.await` on `control`.
@@ -357,13 +361,25 @@ async fn run_session(
                 stats.set_choked(addr, false);
             }
             Message::Have(index) => {
-                peer_has.set(index as usize);
-                tracker.lock().await.add_availability(index as usize);
+                // Only count a newly-learned piece, so this peer's running
+                // availability contribution stays exactly equal to `peer_has`
+                // (which lets us cleanly subtract it on disconnect).
+                let idx = index as usize;
+                if !peer_has.has(idx) {
+                    peer_has.set(idx);
+                    tracker.lock().await.add_availability(idx);
+                }
                 stats.set_have_count(addr, peer_has.count() as u32);
             }
             Message::Bitfield(bytes) => {
-                peer_has = Bitfield::from_bytes(bytes.to_vec(), num_pieces)?;
-                tracker.lock().await.add_bitfield_availability(&peer_has);
+                let new_has = Bitfield::from_bytes(bytes.to_vec(), num_pieces)?;
+                // Replace any prior contribution (e.g. earlier `have`s) with the
+                // new bitfield's, keeping the per-peer invariant above intact.
+                let mut t = tracker.lock().await;
+                t.remove_bitfield_availability(&peer_has);
+                t.add_bitfield_availability(&new_has);
+                drop(t);
+                peer_has = new_has;
                 stats.set_have_count(addr, peer_has.count() as u32);
             }
             Message::Piece(block) => {
@@ -381,8 +397,14 @@ async fn run_session(
             _ => {}
         }
     }
-
     Ok(())
+    }
+    .await;
+
+    // Undo this peer's availability contribution now that it's gone, so a
+    // departed peer doesn't permanently distort rarest-first selection.
+    tracker.lock().await.remove_bitfield_availability(&peer_has);
+    loop_result
 }
 
 /// Apply a received block to the current piece. Returns `Ok(true)` if the

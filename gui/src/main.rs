@@ -136,12 +136,19 @@ fn set_status(app: &AppHandle, id: &str, status: &str) {
 /// Delete the on-disk data for a torrent: a multi-file torrent's whole
 /// `output/<name>` directory, or a single-file torrent's lone file. Only ever
 /// touches the torrent's own paths, never the broader output directory.
-fn delete_data(record: &Record) {
-    if let Some(root) = &record.root {
-        let _ = std::fs::remove_dir_all(root);
+fn delete_data(app: &AppHandle, id: &str, record: &Record) {
+    let results: Vec<std::io::Result<()>> = if let Some(root) = &record.root {
+        vec![std::fs::remove_dir_all(root)]
     } else {
-        for f in &record.files {
-            let _ = std::fs::remove_file(f);
+        record.files.iter().map(std::fs::remove_file).collect()
+    };
+    for r in results {
+        if let Err(e) = r {
+            // A not-yet-created file (download never started) is expected, not
+            // a failure; anything else the user should hear about.
+            if e.kind() != std::io::ErrorKind::NotFound {
+                log(app, id, "error", format!("failed to delete torrent data: {e}"));
+            }
         }
     }
 }
@@ -260,7 +267,7 @@ fn remove_torrent(app: AppHandle, state: tauri::State<AppState>, id: String, mod
         state.torrents.lock().unwrap().remove(&id);
     }
     if mode == "list_and_data" || mode == "data_only" {
-        delete_data(&record);
+        delete_data(&app, &id, &record);
     }
     persist(&app);
 }

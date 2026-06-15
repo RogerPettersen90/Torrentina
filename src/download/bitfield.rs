@@ -13,6 +13,16 @@ use crate::error::{Error, Result};
 pub struct Bitfield {
     bytes: Vec<u8>,
     num_pieces: usize,
+    /// Cached popcount of present pieces, kept in sync by [`set`] and computed
+    /// once in [`from_bytes`]. Lets [`count`]/[`is_complete`] be O(1) instead
+    /// of scanning every piece — they run on the hot path (e.g. once per
+    /// `have`/`bitfield` message and per progress snapshot).
+    ///
+    /// [`set`]: Bitfield::set
+    /// [`from_bytes`]: Bitfield::from_bytes
+    /// [`count`]: Bitfield::count
+    /// [`is_complete`]: Bitfield::is_complete
+    count: usize,
 }
 
 impl Bitfield {
@@ -26,6 +36,7 @@ impl Bitfield {
         Bitfield {
             bytes: vec![0u8; Self::byte_len(num_pieces)],
             num_pieces,
+            count: 0,
         }
     }
 
@@ -41,7 +52,15 @@ impl Bitfield {
                 bytes.len()
             )));
         }
-        Ok(Bitfield { bytes, num_pieces })
+        let mut bf = Bitfield {
+            bytes,
+            num_pieces,
+            count: 0,
+        };
+        // Spare/padding bits past `num_pieces` are ignored by `has`, so count
+        // only the real pieces.
+        bf.count = (0..num_pieces).filter(|&i| bf.has(i)).count();
+        Ok(bf)
     }
 
     /// Total number of pieces this bitfield can describe.
@@ -64,12 +83,18 @@ impl Bitfield {
             return;
         }
         let mask = 0x80u8 >> (index % 8);
-        self.bytes[index / 8] |= mask;
+        let byte = &mut self.bytes[index / 8];
+        if *byte & mask == 0 {
+            *byte |= mask;
+            self.count += 1;
+        }
     }
 
-    /// Count of pieces present.
+    /// Count of pieces present. O(1): maintained incrementally by [`set`].
+    ///
+    /// [`set`]: Bitfield::set
     pub fn count(&self) -> usize {
-        (0..self.num_pieces).filter(|&i| self.has(i)).count()
+        self.count
     }
 
     /// Whether every piece is present.
