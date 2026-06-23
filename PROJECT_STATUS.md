@@ -1,7 +1,16 @@
 # Torrentina — Project Status
 
-_Last updated: 2026-06-05_
+_Last updated: 2026-06-23_
 
+> **2026-06-23 — v0.1.1: hardening + availability fix (completed baseline).**
+> Tagged `v0.1.1` as the finished checkpoint before extending the client. This
+> release adds a **path-traversal guard** on every `.torrent` name/path
+> component, **peer connect/handshake timeouts** (10s), and an
+> **overflow-checked file layout** (`checked_add` on cumulative offsets); it
+> also fixes **rarest-first availability** so a disconnected peer's piece counts
+> are decremented (departed peers no longer skew piece selection). `Bitfield`
+> count/`is_complete` are now O(1). See `CHANGELOG.md` for the full list.
+>
 > **2026-06-05 — stall fix + multi-torrent GUI.** Cured downloads hanging at
 > ~99.9%: pieces stranded behind a choked/silent/slow peer are now freed by
 > (a) releasing a reserved piece when the peer chokes us, (b) a per-request
@@ -28,12 +37,12 @@ every layer.
 
 ## ▶ Resume here tomorrow
 
-Everything below compiles and is green: **61 tests pass, clippy clean across the
+Everything below compiles and is green: **64 tests pass, clippy clean across the
 workspace.** Pick up from **"Next steps"** at the bottom. Quick sanity check
 after reopening:
 
 ```bash
-cargo test                       # 61 pass
+cargo test                       # 64 pass
 cargo run --example loopback_download   # live end-to-end demo (downloads to disk, verifies SHA-1)
 cd gui && cargo tauri dev        # launch the desktop GUI
 ```

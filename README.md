@@ -32,7 +32,7 @@ reusable **engine library**, a **CLI**, and a **Tauri v2 desktop GUI**.
 A prebuilt Debian package is produced by the build (see below):
 
 ```bash
-sudo dpkg -i target/release/bundle/deb/Torrentina_0.1.0_amd64.deb
+sudo dpkg -i target/release/bundle/deb/Torrentina_0.1.1_amd64.deb
 ```
 
 This registers an app icon and menu entry — launch **Torrentina** from your app

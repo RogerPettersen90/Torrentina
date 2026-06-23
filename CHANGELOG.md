@@ -6,6 +6,13 @@ All notable changes to Torrentina are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-06-23
+
+This release hardens the engine against malicious or malformed torrents and
+fixes rarest-first availability accounting. It is the completed baseline before
+work begins on the more advanced client (re-announce, resume-from-disk,
+seeding). All 64 tests pass and the workspace is clippy-clean.
+
 ### Security
 
 - **Path-traversal guard.** Every name component from a `.torrent` (the `info`

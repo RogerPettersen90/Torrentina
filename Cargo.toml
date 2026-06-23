@@ -3,7 +3,7 @@ members = ["gui"]
 
 [package]
 name = "torrentina"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A lightweight, efficient local BitTorrent client built from scratch in Rust."
 license = "MIT"
